@@ -1,0 +1,452 @@
+;Jethro Chan
+
+;Note to Code Readers, .EQU's work like macros in C
+;jsr are jumps, transfer of controls, such as in controlled statements and if/else
+;lda means load the accumulator
+;pop/psh works with popping and pushing onto the stack
+;mul is the same as the * operator in higher languages like C++ and JAVA
+
+	.EQU KBD_CNTL, $000
+	.EQU KBD_STAT, $000
+	.EQU KBD_DATA, $001
+	.EQU KBD_FLUSH, $40
+	.EQU TIM_CNTL, $030
+	.EQU TIM_STAT, $030
+	.EQU TIM_RELOAD, $031
+	.EQU TIM_COUNT, $034
+	.EQU INTERRUPT_ENA, $80
+	.EQU RESET_READY_BIT, $40
+	.EQU START_AFTER_LOAD, $10
+	.EQU ENABLE_RESET_AND_START, $D0
+	.EQU ENABLE_AND_RESET, $C0
+	.EQU CRT_BUFFER, $100
+	.EQU BOTTOM_RIGHT, $313
+	.EQU CRT_XREG, $314
+	.EQU CRT_YREG, $315
+	.EQU CRT_CNTL, $316
+	.EQU CRT_DATA, $317
+	.EQU CRT_ROWS, $0E
+	.EQU CRT_COLS, $26
+	.EQU CLEAR_DISPLAY, $01
+	.EQU HOME, $04
+	.EQU PUT_NUM, $E00 ; MINI_OS JSRS
+	.EQU GET_NUM, $E01
+	.EQU PUT_STR, $E05
+	.EQU PUT_NL, $E06
+	.EQU PUT_NUM2, $E07
+	.EQU PUT_CHR, $E08
+
+
+	.equ top, 0
+	.equ bottom, 13
+	.equ maxright, 37
+	.equ minright, 1
+	.equ down, 2
+	.equ up, 3
+	.equ left, 4
+	.equ right, 5
+	.equ max, 33
+	.equ quit, 'x'
+	.equ start, '\cr'
+	.equ nokkey, 'n'
+	.equ body, 'O'
+	.equ nobody, ' '
+	.equ food, 'F'
+	.equ q_size, 600
+	.equ play_delay, 2500
+	
+		
+; int main()	
+main: lds# $e00
+      cie	;clear interupt enable
+      lda# 3
+      sta lives
+      lda# 0
+      sta score
+      psh# logolen1
+      psh# logo1
+      jsr put_str
+      ads# 2
+      psh# logolen2
+      psh# logo2
+      jsr put_str
+      ads# 2
+      psh# logolen3
+      psh# logo3
+      jsr put_str
+      ads# 2
+      psh# logolen4
+      psh# logo4
+      jsr put_str
+      ads# 2
+      psh# logolen5
+      psh# logo5
+      jsr put_str
+      ads# 2
+      psh# logolen6
+      psh# logo6
+      jsr put_str
+      ads# 2
+      psh# logolen7
+      psh# logo7
+      jsr put_str
+      ads# 2
+      psh# logolen8
+      psh# logo8
+      jsr put_str
+      ads# 2
+      jsr put_nl
+      psh# seedpromptlen
+      psh# seedprompt
+      jsr put_str
+      ads# 2
+      jsr get_num
+      sta seed
+      jsr showintro
+      lda# clear_display	;clear display
+      outb crt_cntl		
+      psh score
+      psh lives
+      jsr showscore	;showScore function
+      ads# 2
+      lda score_delay
+      outw Tim_reload
+      lda# keyISR
+      sta $FF8
+      lda# enable_and_reset
+      outb KBD_CNTL
+      lda# timerisr
+      sta $ff8
+      lda# enable_and_reset
+      outb KBD_CNTL
+      LDA# timerisr
+      sta $ffb
+      lda# enable_reset_and_start
+      outb TIM_CNTL
+      sie
+mainloop:	nop
+		jmp mainloop
+
+
+; SHOWINTRO()
+showintro:	bgn# 0
+		psha
+		lda# clear_display
+		outb crt_cntl
+		psh# introlen1
+		psh# intro1
+		jsr put_str
+		ads# 2
+		jsr put_nl
+		psh# introlen2
+		psh# intro2
+		jsr put_str
+		ads# 2
+		
+		psh# introlen3
+		psh# intro3
+		jsr put_str
+		ads# 2
+		psh# introlen4
+		psh# intro4
+		jsr put_str
+		ads# 2
+		psh# introlen5
+		psh# intro5
+		jsr put_str
+		ads# 2
+		psh# introlen6
+		psh# intro6
+		jsr put_str
+		ads# 2
+		
+		psh# introlen7
+		psh# intro7
+		jsr put_str
+		ads# 2
+		psh# introlen8
+		psh# intro8
+		jsr put_str
+		ads# 2
+		
+introloop:	inb kbd_stat	; is there anything in the buffer?
+		jge introloop
+		inb kbd_data	; return key only
+		cma# start
+		jne introloop
+introdone:	popa	
+		fin# 0
+		rtn
+
+
+; startSnake(int *head, int *tail, int *direction, int Q[])
+  .equ starthead, 12
+  .equ starttail, 11
+  .equ startdirection, 10
+  .equ startq, 9
+  .equ starttimergoal, 8
+  .equ startx, 5
+  .equ starti, 4
+  .equ starty, 3
+  .equ startloc, 2
+  .equ startx2, 1
+  .equ starty2, 0
+
+startSnake: 	bgn# 6
+		lda# clear_display	;clear display
+		outb crt_cntl
+		ldx# 0
+		lda+ ! startq
+		ada# $1F4
+		sta+ ! startq
+		lda# 'O'
+		outb& ! startq
+		ldx# 1
+		lda+ ! startq
+		ada# $1F5
+		sta+ ! startq
+		lda#'O'
+		outb& ! startq
+		ldx# 2
+		lda+ ! startq
+		ada# $1F6
+		sta+ ! startq
+		lda#'O'
+		outb& ! startq
+		ldx# 3
+		lda+ ! startq
+		ada# $1F7
+		sta+ ! startq
+		lda# 'O'
+		outb& ! startq
+startsnake1:	ldx# 0
+		stx ! starti 
+startsnake2:	cmx# 5
+		jge startdone
+		psh# $213
+		jsr random2
+		ads# 1
+		ada# crt_buffer
+		sta foodloc
+		inb* foodloc
+		cma# food
+		jeq startsnake3
+		lda# 'F'
+		outb* foodloc
+		jmp startsnake4
+startsnake3:	dec ! starti
+startsnake4:	inc ! starti
+		ldx ! starti
+		jmp startsnake2
+startdone:	fin# 6
+		rtn
+		
+
+
+; moveSnake(int *head, int *tail, int direction, int Q[], int *score)
+;moveSnake: 
+
+	    .equ movehead,11
+	    .equ movetail,10
+	    .equ movedirection,9
+	    .equ moveq,8
+	    .equ movescore,7
+	    .equ movenewloc,4
+	    .equ movex,3
+	    .equ movey,2
+	    .equ moveok,1
+	    .equ movefoodflag,0
+
+
+movesnake:  bgn# 5
+	    pshx
+
+movesnakedone: popx
+	       fin# 5
+	       rtn
+
+; random2(int max)
+  .equ randommax, 2
+random2:	  bgn# 0
+		  lda seed
+		  mul# 2789
+		  ada# 1997
+		  mod# 2048
+		  sta seed
+		  inc ! randommax
+		  mod ! randommax
+		  fin# 0 
+		  rtn 
+		  
+
+; getKey(int* direction) ... USE KEYISR
+keyISR:	      psha
+	      pshx
+	      lda# 0
+	      outb kbd_cntl
+	      inb kbd_data
+	      cma# quit
+	      jne key1
+	      hlt	; HALT if QUIT == x
+key1:	      cma# $1B
+	      jne keydone
+	      ldx direction
+	      inb kbd_data
+	      cma# up
+	      jne key2
+	      cmx# down 
+	      jeq keydone
+	      sta direction	; direction = up arrow
+	      jmp keydone
+key2:	      cma# down
+	      jne key3
+	      cmx# up
+	      jeq keydone
+	      sta direction	; direction = down arrow
+	      jmp keydone
+key3: 	      cma# left
+	      jne key4
+	      cmx# right
+	      jeq keydone
+	      sta direction	; direction = left arrow
+	      jmp keydone
+key4:	      cmx# right
+	      jne keydone
+	      cmx# left
+	      jeq keydone
+	      sta direction
+keydone:      lda# interrupt_ena
+	      outb kbd_cntl
+	      popx
+	      popa
+	      irtn
+
+
+
+; advanceTime(int delay)  ... USE TIMER
+timerisr:	  psha	  
+		  inw tim_reload
+		  cma score_delay
+		  jne timerisr3
+		  lda lives
+		  cma# 0
+		  jne timerisr2
+		  hlt	; GAME OVER
+timerisr2:	  lda countdown_delay
+		  outw tim_reload
+		  lda# clear_display
+		  outb crt_cntl
+		  lda# '3'
+		  outb crt_buffer + 17
+		  jmp timerisrdone
+timerisr3:	  cma countdown_delay
+		  jne timerisr5
+		  inb crt_buffer + 17
+		  sba# 1
+		  cma# '0'
+		  jeq timerisr4
+		  outb crt_buffer + 17
+		  jmp timerisrdone
+timerisr4:	  psh# head
+		  psh# tail
+		  psh# direction
+		  psh q
+		  psh# timergoal
+		  jsr startsnake
+		  ads# 5
+		  lda# play_delay
+		  outw tim_reload
+		  jmp timerisrdone
+timerisr5:	  psh# head
+		  psh# tail
+		  psh# direction
+		  psh# q
+		  psh# score
+		  jsr movesnake
+		  ads# 5
+		  cma# 0
+		  jne timerisrdone
+		  dec lives
+		  psh score
+		  psh lives
+		  jsr showscore
+		  ads# 2
+		  lda score_delay
+		  outw tim_reload
+timerisrdone:	  lda# enable_reset_and_start
+		  outb tim_cntl
+		  popa
+		  irtn
+
+
+
+; SHOWSCORE(int score, int lives)
+  .equ show_score, 3
+  .equ show_lives, 2
+
+showscore:	   bgn# 0
+		   psha
+		   lda# 0
+		   sta timer
+		   lda score_delay
+		   sta play_delay
+		   lda# 14
+		   outb crt_xreg
+		   lda# 1
+		   outb crt_yreg
+		   psh# printscorelen
+		   psh# printscore
+		   jsr put_str
+		   ads# 2
+		   lda ! show_score
+		   jsr put_num
+		   lda# 14
+		   outb crt_xreg
+		   lda# 2
+		   outb crt_yreg
+		   psh# printlivelen
+		   psh# printlive
+		   jsr put_str
+		   ads# 2
+		   lda ! show_lives
+		   jsr put_num
+		   popa
+		   fin# 0
+		   rtn
+
+
+printlive:	   .char	'Lives: ', printlivelen
+printscore:	   .char 'Score: ', printscorelen
+
+intro1:		   .char 'Snake Introduction\cr\lf', introlen1
+intro2:		   .char 'This is the full version of\cr\lf', introlen2
+intro3:		   .char 'snake. The game starts when the\cr\lf', introlen3
+intro4:		   .char 'enter key is pressed. The game\cr\lf', introlen4
+intro5:		   .char 'ends when either the user presses x,\cr\lf',introlen5
+intro6:		   .char 'or their lives reaches zero.\cr\lf', introlen6
+intro7:		   .char 'The options we plan to implement are: \cr\lf', introlen7
+intro8:		   .char 'Ascii Art and 2 other features \cr\lf', introlen8
+seedprompt:	   .char 'Seed', seedpromptlen
+lives:		   .word
+score:		   .word 0
+timer: 		   .word 0
+score_delay:	   .word 50000
+seed:		   .word
+direction:	   .word
+countdown_delay: .word 5000
+head:		 .word
+tail:		 .word
+timergoal:	 .word
+q: 		 .blkw 532, 0
+foodloc:	 .word 
+snakelen:	 .word
+
+logo1:		 .char '.oOOOo.                o              ' ,logolen1
+logo2:		 .char ' o     o                O             ' ,logolen2
+logo3:		 .char ' O.                     o             ' ,logolen3
+logo4:		 .char '  OOoo.                 o             ' ,logolen4
+logo5:		 .char '        O  OoOo. .oOoO  O  o  .oOo.   ' ,logolen5
+logo6:		 .char '        o  o   O O   o  OoO   OooO    ' ,logolen6
+logo7:		 .char ' O.    .O  O   o o   O  o  O  O       ' ,logolen7
+logo8:		 .char '   oooO    o   O  OoO o O   o  OoO    ' ,logolen8
+
